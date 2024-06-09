@@ -1,4 +1,8 @@
 import OpenAI from "openai";
+import {
+  RunnableToolFunctionWithParse,
+  RunnableToolFunctionWithoutParse,
+} from "openai/lib/RunnableFunction";
 interface WeatherParams {
   location: string;
   unit?: "Celsius" | "Fahrenheit";
@@ -18,15 +22,42 @@ export async function getLocation() {
   try {
     const response = await fetch("https://ipapi.co/json/");
     const text = await response.json();
-    console.log("----------");
-    console.log("getLocation", text);
-    console.log("----------");
+
     return JSON.stringify(text);
   } catch (err) {
     console.log(err);
   }
 }
-export const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+export const functions: readonly (
+  | RunnableToolFunctionWithoutParse
+  | RunnableToolFunctionWithParse<any>
+)[] = [
+  {
+    type: "function",
+    function: {
+      description: "Get the current weather",
+      function: getLocation,
+      parse: JSON.parse,
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      function: getCurrentWeather,
+      description: "Get the current weather",
+      parse: JSON.parse, // or use a validation library like zod for typesafe parsing.
+      parameters: {
+        type: "object",
+        properties: {
+          location: { type: "string" },
+        },
+      },
+    },
+  },
+];
+
+export const toolsV2: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {

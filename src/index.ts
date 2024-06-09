@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import * as dotenv from "dotenv";
-import { getCurrentWeather, getLocation, tools } from "./tools.js";
+import { functions, getCurrentWeather, getLocation, toolsV2 } from "./tools.js";
 
 dotenv.config();
 
@@ -27,45 +27,14 @@ async function agent(query: string) {
     },
     { role: "user", content: query },
   ];
-  const MAX_ITERATIONS = 5;
-  const actionRegex = /^Action: (\w+): (.*)$/;
-
-  for (let i = 0; i < MAX_ITERATIONS; i++) {
-    console.log(`Iteration #${i + 1}`);
-    const response = await openAi.chat.completions.create({
+  const runner = openAi.beta.chat.completions
+    .runTools({
       model: "gpt-3.5-turbo",
       messages,
-      tools,
-    });
-
-    const { finish_reason: finishReason, message } = response.choices[0];
-    const { tool_calls: toolCalls } = message;
-
-    messages.push(message);
-
-    console.log(message);
-    console.log("finishReason", finishReason);
-    if (finishReason === "stop") {
-      console.log("Agent finished with task");
-      console.log(messages);
-      return message;
-    } else if (finishReason === "tool_calls") {
-      if (!toolCalls) throw new Error("No tool calls found");
-      for (const toolCall of toolCalls) {
-        const functionName = toolCall.function.name;
-        const functionToCall =
-          availableFunctions[functionName as AvailableFunctionNames];
-        const functionArgs = JSON.parse(toolCall.function.arguments);
-        const functionResponse = await functionToCall(functionArgs);
-        console.log(functionResponse);
-        messages.push({
-          tool_call_id: toolCall.id,
-          role: "tool",
-          content: functionResponse ?? "",
-        });
-      }
-    }
-  }
+      tools: functions,
+    })
+    .on("message", (message) => console.log(message));
+  const response = await runner;
 }
 
-await agent("What's the current weather in my location?");
+await agent("What's the current weather in my current location?");
